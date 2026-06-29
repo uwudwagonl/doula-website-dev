@@ -1,0 +1,54 @@
+/**
+ * Admin-only data for Beatriz's client dashboard. Locked to siteOwner in permissions.json; every method also
+ * asserts the caller holds the Admin role. Host on a collaborator-only Dashboard page.
+ */
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const SUPPRESS = { suppressAuth: true };
+
+async function assertAdmin() {
+  const roles = await currentMember.getRoles().catch(() => []);
+  const isAdmin = roles.some(r => (r.title || '').toLowerCase() === 'admin' || r.role === 'ADMIN');
+  if (!isAdmin) throw new Error('forbidden');
+}
+
+/** Full client roster with tier progress, request statuses, invoice ids. */
+export async function getClientRoster() {
+  await assertAdmin();
+
+  const clients = (await wixData.query('Clients').descending('_updatedDate').limit(1000).find(SUPPRESS)).items;
+  const tiers = (await wixData.query('Tiers').ascending('orderIndex').find(SUPPRESS)).items;
+  const tierById = Object.fromEntries(tiers.map(t => [t._id, t]));
+  const requests = (await wixData.query('Requests').descending('_createdDate').limit(2000).find(SUPPRESS)).items;
+
+  const byClient = {};
+  for (const r of requests) (byClient[r.clientId] = byClient[r.clientId] || []).push(r);
+
+  return clients.map(c => {
+    const reqs = byClient[c._id] || [];
+    const completed = reqs.filter(r => r.status === 'completed').map(r => tierById[r.tierId]).filter(Boolean);
+    const furthest = completed.sort((a, b) => (b.orderIndex || 0) - (a.orderIndex || 0))[0] || null;
+    return {
+      clientId: c._id, name: c.name, email: c.email, phone: c.phone, status: c.status, notes: c.notes,
+      currentTier: furthest ? { title: furthest.title, orderIndex: furthest.orderIndex } : null,
+      requests: reqs.map(r => ({
+        requestId: r._id, tierTitle: tierById[r.tierId] && tierById[r.tierId].title,
+        status: r.status, requestedDate: r.requestedDate, invoiceId: r.invoiceId,
+        formSubmissionId: r.formSubmissionId, bookingId: r.bookingId
+      }))
+    };
+  });
+}
+
+/** Beatriz marks a request completed (unlocks the next tier) / declined, from the dashboard. */
+export async function setRequestStatus({ requestId, status }) {
+  await assertAdmin();
+  const allowed = ['pending', 'approved', 'declined', 'completed', 'canceled'];
+  if (!allowed.includes(status)) throw new Error('bad status');
+  const r = await wixData.get('Requests', requestId, SUPPRESS);
+  if (!r) throw new Error('not found');
+  r.status = status;
+  await wixData.update('Requests', r, SUPPRESS);
+  return { ok: true };
+}

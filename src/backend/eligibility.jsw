@@ -1,0 +1,98 @@
+/**
+ * Server-side tier gating - the core custom logic.
+ * Collections are admin-only; the member never reads them directly. They call these web methods, we authenticate
+ * the member server-side, then use { suppressAuth: true } for the data ops. Permissions are set in permissions.json.
+ */
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members-backend';
+
+const SUPPRESS = { suppressAuth: true };
+
+async function resolveClient() {
+  const member = await currentMember.getMember();
+  if (!member) return null;
+  const email = (member.loginEmail || (member.contactDetails && member.contactDetails.emails && member.contactDetails.emails[0]) || '').toLowerCase();
+  if (!email) return null;
+
+  const existing = await wixData.query('Clients').eq('email', email).find(SUPPRESS);
+  if (existing.items.length) {
+    const row = existing.items[0];
+    if (row.memberId !== member._id) {
+      row.memberId = member._id;
+      await wixData.update('Clients', row, SUPPRESS);
+    }
+    return row;
+  }
+  return wixData.insert('Clients', {
+    email,
+    memberId: member._id,
+    contactId: member.contactId || null,
+    name: [member.contactDetails && member.contactDetails.firstName, member.contactDetails && member.contactDetails.lastName].filter(Boolean).join(' '),
+    phone: (member.contactDetails && member.contactDetails.phones && member.contactDetails.phones[0]) || '',
+    status: 'lead'
+  }, SUPPRESS);
+}
+
+async function isEligible(clientId, tier) {
+  if (!tier.prerequisiteTierId) return true;
+  const done = await wixData.query('Requests')
+    .eq('clientId', clientId).eq('tierId', tier.prerequisiteTierId).eq('status', 'completed')
+    .limit(1).find(SUPPRESS);
+  return done.items.length > 0;
+}
+
+function publicTier(t) {
+  return { _id: t._id, title: t.title, trackKey: t.trackKey, orderIndex: t.orderIndex,
+           price: t.price, currency: t.currency, isFree: t.isFree, bookingsServiceId: t.bookingsServiceId };
+}
+
+/** Tiers for a track (or all) with an `eligible` flag + the member's status per tier. Safe when logged out. */
+export async function getMyTiers(trackKey) {
+  let q = wixData.query('Tiers').eq('active', true).ascending('orderIndex');
+  if (trackKey) q = q.eq('trackKey', trackKey);
+  const tiers = (await q.find(SUPPRESS)).items;
+
+  const client = await resolveClient();
+  if (!client) {
+    return { loggedIn: false, tiers: tiers.map(t => ({ ...publicTier(t), eligible: false, myStatus: null })) };
+  }
+
+  const myReqs = (await wixData.query('Requests').eq('clientId', client._id).find(SUPPRESS)).items;
+  const statusByTier = {};
+  for (const r of myReqs) statusByTier[r.tierId] = r.status;
+
+  const out = [];
+  for (const t of tiers) {
+    out.push({ ...publicTier(t), eligible: await isEligible(client._id, t), myStatus: statusByTier[t._id] || null });
+  }
+  return { loggedIn: true, clientId: client._id, name: client.name, email: client.email, tiers: out };
+}
+
+/** Gated request creation. Re-checks eligibility server-side and requires intake-form proof. */
+export async function requestTier({ tierId, requestedDate, formSubmissionId, bookingId = null }) {
+  if (!formSubmissionId) throw new Error('intake form must be submitted before requesting');
+
+  const client = await resolveClient();
+  if (!client) throw new Error('not logged in');
+
+  const tier = await wixData.get('Tiers', tierId, SUPPRESS);
+  if (!tier || !tier.active) throw new Error('tier not available');
+  if (!(await isEligible(client._id, tier))) throw new Error('prerequisite tier not completed');
+
+  const open = await wixData.query('Requests')
+    .eq('clientId', client._id).eq('tierId', tierId).hasSome('status', ['pending', 'approved'])
+    .limit(1).find(SUPPRESS);
+  if (open.items.length) return { ok: true, duplicate: true, requestId: open.items[0]._id };
+
+  const req = await wixData.insert('Requests', {
+    clientId: client._id, email: client.email, tierId, trackKey: tier.trackKey || null,
+    bookingId, requestedDate: requestedDate ? new Date(requestedDate) : null,
+    formSubmissionId, status: 'pending'
+  }, SUPPRESS);
+
+  if (client.status === 'lead') {
+    client.status = 'active';
+    await wixData.update('Clients', client, SUPPRESS);
+  }
+  return { ok: true, requestId: req._id };
+}
