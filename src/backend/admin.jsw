@@ -3,14 +3,37 @@
  * asserts the caller holds the Admin role. Host on a collaborator-only Dashboard page.
  */
 import wixData from 'wix-data';
-import { currentMember } from 'wix-members-backend';
+import wixUsersBackend from 'wix-users-backend';
 
 const SUPPRESS = { suppressAuth: true };
 
+// The backend currentUser does NOT expose a `.role` string (that's the frontend wix-users prop).
+// Owner/contributors get a role named 'Admin' from getRoles(); we check both to be safe.
+async function adminInfo() {
+  const u = wixUsersBackend.currentUser;
+  let roleProp; try { roleProp = u.role; } catch (e) { roleProp = undefined; }
+  let roles = []; let rolesErr = null;
+  try { roles = await u.getRoles(); } catch (e) { rolesErr = (e && e.message) || String(e); }
+  const roleNames = roles.map(r => ((r && (r.name || r.title)) || '').toLowerCase());
+  const isAdmin = roleProp === 'Admin' || roleNames.includes('admin');
+  return { isAdmin, loggedIn: !!u.loggedIn, id: u.id || null,
+           roleProp: roleProp === undefined ? '(undefined)' : roleProp, roleNames, rolesErr };
+}
+
+async function isAdmin() { return (await adminInfo()).isAdmin; }
+
 async function assertAdmin() {
-  const roles = await currentMember.getRoles().catch(() => []);
-  const isAdmin = roles.some(r => (r.title || '').toLowerCase() === 'admin' || r.role === 'ADMIN');
-  if (!isAdmin) throw new Error('forbidden');
+  if (!(await isAdmin())) throw new Error('forbidden');
+}
+
+/** Page guard helper — true only for site admins/collaborators. Safe for anyone to call. */
+export async function amIAdmin() {
+  return isAdmin();
+}
+
+/** TEMP DIAGNOSTIC — remove before ship. Returns the caller's role info without asserting. */
+export async function adminDiag() {
+  return adminInfo();
 }
 
 /** Full client roster with tier progress, request statuses, invoice ids. */
@@ -20,7 +43,7 @@ export async function getClientRoster() {
   const clients = (await wixData.query('Clients').descending('_updatedDate').limit(1000).find(SUPPRESS)).items;
   const tiers = (await wixData.query('Tiers').ascending('orderIndex').find(SUPPRESS)).items;
   const tierById = Object.fromEntries(tiers.map(t => [t._id, t]));
-  const requests = (await wixData.query('Requests').descending('_createdDate').limit(2000).find(SUPPRESS)).items;
+  const requests = (await wixData.query('Requests').descending('_createdDate').limit(1000).find(SUPPRESS)).items;
 
   const byClient = {};
   for (const r of requests) (byClient[r.clientId] = byClient[r.clientId] || []).push(r);

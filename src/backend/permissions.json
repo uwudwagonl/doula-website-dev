@@ -17,9 +17,34 @@
         "siteOwner": { "invoke": true },
         "siteMember": { "invoke": true },
         "anonymous": { "invoke": false }
+      },
+      "previewTiers": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      },
+      "listTiers": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      },
+      "checkAndStartBooking": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
       }
     },
     "backend/admin.jsw": {
+      "amIAdmin": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      },
+      "adminDiag": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": true },
+        "anonymous": { "invoke": true }
+      },
       "getClientRoster": {
         "siteOwner": { "invoke": true },
         "siteMember": { "invoke": false },
