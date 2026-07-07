@@ -3,8 +3,8 @@
     "*": {
       "*": {
         "siteOwner": { "invoke": true },
-        "siteMember": { "invoke": true },
-        "anonymous": { "invoke": true }
+        "siteMember": { "invoke": false },
+        "anonymous": { "invoke": false }
       }
     },
     "backend/eligibility.jsw": {
@@ -20,8 +20,8 @@
       },
       "previewTiers": {
         "siteOwner": { "invoke": true },
-        "siteMember": { "invoke": true },
-        "anonymous": { "invoke": true }
+        "siteMember": { "invoke": false },
+        "anonymous": { "invoke": false }
       },
       "listTiers": {
         "siteOwner": { "invoke": true },
@@ -42,8 +42,8 @@
       },
       "adminDiag": {
         "siteOwner": { "invoke": true },
-        "siteMember": { "invoke": true },
-        "anonymous": { "invoke": true }
+        "siteMember": { "invoke": false },
+        "anonymous": { "invoke": false }
       },
       "getClientRoster": {
         "siteOwner": { "invoke": true },
