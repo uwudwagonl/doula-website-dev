@@ -52,7 +52,7 @@ function bindRow($item, row) {
   const furthest = c.currentTier ? c.currentTier.title.trim() : 'No completed steps yet';
   const reqs = (c.requests || []);
   const reqLine = reqs.length
-    ? reqs.map(r => `${(r.tierTitle || '?').trim()}: <b style="color:${statusColor(r.status)}">${r.status}</b>`).join('&nbsp;&nbsp;·&nbsp;&nbsp;')
+    ? reqs.map(r => `${esc((r.tierTitle || '?').trim())}: <b style="color:${statusColor(r.status)}">${esc(r.status)}</b>`).join('&nbsp;&nbsp;·&nbsp;&nbsp;')
     : 'No requests yet';
 
   const hasName = !!(c.name && c.name.trim());
@@ -60,10 +60,10 @@ function bindRow($item, row) {
   const sub = hasName ? c.email : '';
   setHtml($item, '#text47',
     `<div style="font-family:Helvetica,Arial,sans-serif">` +
-    `<div style="font-size:15px;font-weight:bold;color:#111111;word-break:break-all;line-height:1.25">${heading}</div>` +
-    (sub ? `<div style="font-size:12px;color:#888888;word-break:break-all">${sub}</div>` : '') + `</div>`);
+    `<div style="font-size:15px;font-weight:bold;color:#111111;word-break:break-all;line-height:1.25">${esc(heading)}</div>` +
+    (sub ? `<div style="font-size:12px;color:#888888;word-break:break-all">${esc(sub)}</div>` : '') + `</div>`);
   setHtml($item, '#text48',
-    `<div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a2f9e;font-weight:bold">Furthest paid/completed step: ${furthest}</div>`);
+    `<div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#7a2f9e;font-weight:bold">Furthest paid/completed step: ${esc(furthest)}</div>`);
   setHtml($item, '#text49',
     `<div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#444444">${reqLine}</div>`);
   setText($item, '#text50', '');
@@ -93,6 +93,13 @@ async function act(event, key, newStatus) {
   } catch (e) {
     if (btn) { try { btn.label = 'Error'; btn.enable(); } catch (x) {} }
   }
+}
+
+// Client name/email are typed by the public on the Booking Journey form — escape before rendering as HTML.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function statusColor(s) {
