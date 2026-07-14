@@ -5,8 +5,44 @@
  */
 import wixData from 'wix-data';
 import { currentMember } from 'wix-members-backend';
+import { contacts } from 'wix-crm-backend';
 
 const SUPPRESS = { suppressAuth: true };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(lc) { return EMAIL_RE.test(lc); }
+
+/**
+ * Resolve-or-create a client row by email, converging duplicates: wix-data has no unique
+ * constraint, so a rapid double-submit can insert two rows. After inserting we re-query and
+ * treat the OLDEST row as canonical; if ours lost the race, delete it and use the winner.
+ */
+async function resolveClientByEmail(lc) {
+  const existing = await wixData.query('Clients').eq('email', lc).ascending('_createdDate').limit(1).find(SUPPRESS);
+  if (existing.items.length) return existing.items[0];
+
+  const inserted = await wixData.insert('Clients', { email: lc, status: 'lead' }, SUPPRESS);
+  const all = await wixData.query('Clients').eq('email', lc).ascending('_createdDate').find(SUPPRESS);
+  const canonical = all.items[0] || inserted;
+  if (canonical._id !== inserted._id) {
+    await wixData.remove('Clients', inserted._id, SUPPRESS).catch(() => {});
+  }
+  return canonical;
+}
+
+/** Link a captured client to the native Wix CRM (non-fatal — booking must never break on this). */
+async function linkContact(client) {
+  if (client.contactId) return;
+  try {
+    const res = await contacts.appendOrCreateContact({ emails: [{ email: client.email }] });
+    if (res && res.contactId) {
+      client.contactId = res.contactId;
+      await wixData.update('Clients', client, SUPPRESS);
+    }
+  } catch (e) {
+    console.log('CRM link failed (non-fatal)', (e && e.message) || e);
+  }
+}
 
 async function resolveClient() {
   const member = await currentMember.getMember();
@@ -123,14 +159,12 @@ export async function listTiers(trackKey) {
  */
 export async function checkAndStartBooking(email, tierId) {
   const lc = (email || '').trim().toLowerCase();
-  if (!lc || lc.indexOf('@') < 0) return { ok: false, reason: 'Please enter a valid email.' };
+  if (!isValidEmail(lc)) return { ok: false, reason: 'Please enter a valid email.' };
 
   const tier = await wixData.get('Tiers', tierId, SUPPRESS);
   if (!tier || !tier.active) return { ok: false, reason: 'That option is not available.' };
 
-  // resolve or create the client by email
-  let client = (await wixData.query('Clients').eq('email', lc).limit(1).find(SUPPRESS)).items[0];
-  if (!client) client = await wixData.insert('Clients', { email: lc, status: 'lead' }, SUPPRESS);
+  const client = await resolveClientByEmail(lc);
 
   const allTiers = (await wixData.query('Tiers').eq('active', true).find(SUPPRESS)).items;
   const eligible = await tierEligible(client._id, tier, allTiers);
@@ -149,6 +183,7 @@ export async function checkAndStartBooking(email, tierId) {
     await wixData.insert('Requests', { clientId: client._id, email: lc, tierId, trackKey: tier.trackKey || null, status: 'pending' }, SUPPRESS);
     if (client.status === 'lead') { client.status = 'active'; await wixData.update('Clients', client, SUPPRESS); }
   }
+  await linkContact(client);
   return { ok: true, bookingUrl: tier.bookingUrl };
 }
 

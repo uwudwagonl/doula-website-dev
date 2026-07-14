@@ -31,11 +31,6 @@ export async function amIAdmin() {
   return isAdmin();
 }
 
-/** TEMP DIAGNOSTIC — remove before ship. Returns the caller's role info without asserting. */
-export async function adminDiag() {
-  return adminInfo();
-}
-
 /** Full client roster with tier progress, request statuses, invoice ids. */
 export async function getClientRoster() {
   await assertAdmin();
@@ -72,6 +67,18 @@ export async function setRequestStatus({ requestId, status }) {
   const r = await wixData.get('Requests', requestId, SUPPRESS);
   if (!r) throw new Error('not found');
   r.status = status;
+  await wixData.update('Requests', r, SUPPRESS);
+  return { ok: true };
+}
+
+/** Beatriz attaches booking/invoice details to a request (for tooling/automations). */
+export async function setRequestInfo({ requestId, invoiceId, bookingId, requestedDate }) {
+  await assertAdmin();
+  const r = await wixData.get('Requests', requestId, SUPPRESS);
+  if (!r) throw new Error('not found');
+  if (invoiceId !== undefined) r.invoiceId = invoiceId;
+  if (bookingId !== undefined) r.bookingId = bookingId;
+  if (requestedDate !== undefined) r.requestedDate = requestedDate ? new Date(requestedDate) : null;
   await wixData.update('Requests', r, SUPPRESS);
   return { ok: true };
 }

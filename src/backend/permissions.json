@@ -40,17 +40,17 @@
         "siteMember": { "invoke": true },
         "anonymous": { "invoke": true }
       },
-      "adminDiag": {
-        "siteOwner": { "invoke": true },
-        "siteMember": { "invoke": false },
-        "anonymous": { "invoke": false }
-      },
       "getClientRoster": {
         "siteOwner": { "invoke": true },
         "siteMember": { "invoke": false },
         "anonymous": { "invoke": false }
       },
       "setRequestStatus": {
+        "siteOwner": { "invoke": true },
+        "siteMember": { "invoke": false },
+        "anonymous": { "invoke": false }
+      },
+      "setRequestInfo": {
         "siteOwner": { "invoke": true },
         "siteMember": { "invoke": false },
         "anonymous": { "invoke": false }

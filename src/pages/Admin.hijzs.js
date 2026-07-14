@@ -1,4 +1,4 @@
-import { getClientRoster, amIAdmin, setRequestStatus, adminDiag } from 'backend/admin';
+import { getClientRoster, amIAdmin, setRequestStatus } from 'backend/admin';
 import wixLocation from 'wix-location';
 import wixWindow from 'wix-window';
 
@@ -26,23 +26,21 @@ $w.onReady(async () => {
 
 async function load() {
   actionable = {};
-  let clients = [], err = null, diag = null;
+  let clients = [], err = null;
   try { clients = await getClientRoster(); } catch (e) { err = (e && e.message) || String(e); }
-  try { diag = await adminDiag(); } catch (e) { diag = { diagErr: (e && e.message) || String(e) }; }
-  console.log('ADMIN DIAG', { count: clients.length, rosterErr: err, diag });
-  const rows = clients.length ? clients.map(c => ({ _id: c.clientId, c })) : [{ _id: 'none', empty: true, err, diag }];
+  if (err) console.log('roster error', err);
+  const rows = clients.length ? clients.map(c => ({ _id: c.clientId, c })) : [{ _id: 'none', empty: true }];
   $w('#repeater1').data = rows;
 }
 
 function bindRow($item, row) {
+  clearBg($item, '#box2'); clearBg($item, '#container2');
   style($item, '#box2', { backgroundColor: '#FFFFFF', borderRadius: '10px' });
   style($item, '#container2', { backgroundColor: '#FFFFFF' });
 
   if (row.empty) {
-    const d = row.diag || {};
     setHtml($item, '#text47',
-      `<div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#888">No clients yet — they'll appear here after their first booking.</div>` +
-      `<div style="font-family:monospace;font-size:11px;color:#c0392b;margin-top:8px">DIAG · isAdmin=${d.isAdmin} loggedIn=${d.loggedIn} role=${d.roleProp} roleNames=[${(d.roleNames || []).join(',')}] rolesErr=${d.rolesErr || '-'}<br>rosterErr=${row.err || '-'}</div>`);
+      `<div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#888">No clients yet — they'll appear here after their first booking.</div>`);
     setText($item, '#text48', ''); setText($item, '#text49', ''); setText($item, '#text50', '');
     collapse($item, '#button1'); collapse($item, '#button2');
     return;
@@ -110,6 +108,7 @@ function statusColor(s) {
 function setHtml(s, id, v) { try { const e = s(id); if (e && 'html' in e) e.html = v; } catch (x) {} }
 function setText(s, id, v) { try { const e = s(id); if (e && 'text' in e) e.text = v; } catch (x) {} }
 function style(s, id, p) { try { const e = s(id); if (e && e.style) { for (const k in p) { try { e.style[k] = p[k]; } catch (x) {} } } } catch (x) {} }
+function clearBg(s, id) { try { const e = s(id); if (e && e.background && 'src' in e.background) e.background.src = ''; } catch (x) {} }
 function collapse(s, id) { try { const e = s(id); if (e && e.collapse) e.collapse(); } catch (x) {} }
 function toggleBtn(s, id, on, label) {
   try {
