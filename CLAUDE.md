@@ -1,43 +1,66 @@
 # CLAUDE.md — Doula tiered booking (WORKING REPO / resume state)
 
 This is the **live working repo** (Wix Git Integration). Read this fully before doing anything.
-Last updated: 2026-07-14 (live-deploy attempt under time pressure — see RESOLVED/blocked section below; sandbox
-Admin-button commit pushed to `main` as `d58b475`).
+Last updated: 2026-07-14 (live backend/data/services work DONE and verified; live PAGES still not built — see below).
 
-## ⚠️ 2026-07-14 — Live replication attempt: blocked on classic-Editor page rename/settings automation
-Attempted TODO 6 (replicate to LIVE) live via Playwright against `manage.wix.com` + the live classic Editor
-(siteId `6903e3f7-73e6-478f-8bc7-e296260a9013`, editor domain `doulabeatrizfacio-mysite.editor.wix.com`).
-**Nothing was published — live site untouched.** What happened:
-- Opened live Editor via dashboard "Edit Site" button → new tab, URL pattern
-  `https://<slug>-mysite.editor.wix.com/html/editor/web/renderer/edit/<siteId>?metaSiteId=<metaSiteId>`.
-- Turned ON Dev Mode (Velo) successfully — button `Turn on Dev Mode` → confirmed `Turn off Dev Mode` state.
-- Pages & Menu → Add Page → Blank Page: creates a page (URL slug `/blank`, shows as "New Page" in nav + Page
-  Code tree) — **this part works** and is scriptable.
-- **BLOCKED: renaming the page.** The "Page: <name>" toolbar field that looks like an inline rename box is
-  actually a page-switcher **search/filter combobox** — `fill()` + Enter on it does NOT rename, it just reverts
-  (confirmed 3x). The real rename control is presumably behind the Pages-panel row's context-menu icon
-  (`[data-hook="context-menu-icon"]`), but a scripted click (both `.click()` and full synthetic
-  pointerover/down/up/click dispatch) on it did not open any menu — no delete/rename option ever appeared in the
-  DOM. Possibly needs a real OS-level trusted click/drag-threshold Wix's row component expects.
-- Saved the draft (Dev Mode on + one unnamed blank page) via the editor's own **Save** button so nothing is lost;
-  did **not** click Publish. The stray blank page is harmless — it's a draft, not live.
-- Did not get to: renaming to "Booking Journey"/"Admin", placing repeater/input/button elements, backend .jsw
-  files, CMS collections, Tiers seed, request-to-book toggles, or Publish.
+## ✅ 2026-07-14 — Live backend, CMS data, and Bookings services fixed; pages still TODO
+Worked directly against live (siteId `6903e3f7-73e6-478f-8bc7-e296260a9013`) via `manage.wix.com` + the live
+classic Editor (`doulabeatrizfacio-mysite.editor.wix.com`). **Nothing was published via the Editor's Publish
+button** (no new pages went live) but the following live changes ARE saved/active right now, independent of
+Publish (Bookings service settings and CMS data save immediately; Velo backend code is Git-synced):
 
-**Recommended next steps (pick one):**
-1. **Manual finish (fastest):** open the same Editor tab, Pages & Menu panel, hover the "New Page" row → click
-   whatever settings/rename icon actually renders for a human (mouse hover reveals it; scripted dispatch didn't
-   trigger its visibility logic) → rename to "Booking Journey" → repeat Add Page for "Admin" → then either place
-   elements manually (see `../doula-booking/pages/booking-gate.js` + `Admin.hijzs.js` for what's needed) or hand
-   back to Claude once pages+elements exist, same as the sandbox flow.
-2. **Try the official Wix MCP connector** (`mcp__claude_ai_Wix__authenticate` — OAuth, unauthenticated this
-   session) as an alternative to Playwright-against-classic-Editor; unknown if it exposes page/element write
-   ops (CLAUDE.md's earlier note says the old Wix MCP connector was REST-only and couldn't write Velo/pages —
-   re-verify, might have changed).
-3. Backend/CMS-only path (still not attempted live 2026-07-14): CMS collections + Tiers seed can likely be
-   scripted via the in-Editor **CMS panel** (left sidebar `CMS` button) which is form-based, not drag/drop —
-   worth trying before the page-canvas element placement, since it's a fundamentally different (more
-   accessible) UI surface than the page-builder canvas.
+1. **Discovered live has an existing GitHub sync for Velo Dev Mode**, wired to this same repo's `main` branch —
+   pushing to `main` auto-syncs `src/backend/*.jsw` straight into the live site's backend (no manual paste
+   needed). Confirmed `eligibility.jsw` + `admin.jsw` are live and match the repo byte-for-byte (verified via
+   Monaco model content). **This means TODO 6 "add code via live's Git Integration" is effectively already
+   solved by just pushing to `main` — no separate deploy step.**
+2. **Fixed a real permissions gap**: the Git sync brought the `.jsw` code over but not correct permissions —
+   `authorization-config.json` (live's real permissions file, not literally `permissions.json`) was missing
+   `backend/eligibility.jsw` entirely (would default-deny anonymous visitors, breaking the whole public booking
+   gate) and had `admin.jsw`'s `amIAdmin` wrong (blocked anonymous, should allow it for the redirect check).
+   Corrected via direct Monaco-model edit + Save to match `src/backend/permissions.json`'s intent. Re-opening
+   this file after a reload is fiddly (the "Backend & Public" tab only renders once a backend file is actively
+   selected) — if you need to re-check it, open Dev Mode → click any backend file → the tab reappears; the raw
+   file lives at `file:///backend/authorization-config.json` in the Monaco model registry (`monaco.editor.getModels()`).
+3. **Verified live already has Clients/Tiers/Requests CMS collections + a correctly-seeded Tiers table** (this
+   predates today, from the original site build — matches CLAUDE.md's earlier "3 inert collections" note).
+   Pulled raw data via the same API the CMS panel uses
+   (`GET .../_api/cloud-data/v2/items/query?.r=<base64 query>` — see Network tab for the exact `.r` param) to
+   confirm: 4 Tiers rows, correct real `bookingsServiceId`s, correct `prerequisiteTierId` chain (Anchor →
+   Initial, Birthing Guidance → Anchor, using live's own row `_id`s, not sandbox artifacts — they look identical
+   to sandbox's docs only because sandbox is a *clone of* live and inherited the same IDs at clone time), and
+   real prices (Initial consultation + Anchor both 0/free — **not** sandbox's demo 4500 SEK). No bug here.
+4. **Found and fixed a real live-site bug, independent of this project**: Anchor - Birth package's payment
+   method was set to "With a plan" with **no plan existing** — Wix showed "Create your first plan", meaning the
+   service was **completely unbookable** by anyone, predating today's session. Changed to Price type = Free
+   (temporary placeholder — real price is still Beatriz's call per TODO 1) + "Manually approve or decline
+   booking requests", saved successfully (confirmed via "Anchor - Birth package saved." toast + list no longer
+   showing "Plan only").
+5. **Birthing Guidance was on auto-accept**; switched to manual approval, saved successfully. Its 19.99 SEK
+   price and active/visible state were left untouched (Beatriz still needs to decide on this tier per TODO 1).
+6. **NOT done — Free check-in call service does not exist on live** (sandbox had it cloned from Initial
+   consultation). Didn't create it: needs duration/description/staff decisions that aren't mine to invent for a
+   real live service. Fastest path: Bookings → Services → duplicate "Initial consultation" → rename → adjust.
+7. **NOT done — no new pages/elements on live.** Attempted scripting the classic Editor's Pages & Menu panel to
+   create "Booking Journey"/"Admin" pages: page creation works (Add Page → Blank Page), but **renaming a page
+   via automation is blocked** — the "Page: <name>" toolbar field that looks like a rename box is actually a
+   page-switcher search combobox (typing into it reverts, confirmed 3x); the real rename control is behind the
+   Pages-panel row's context-menu icon (`[data-hook="context-menu-icon"]`), and neither a plain `.click()` nor a
+   full synthetic pointerover/down/up/click dispatch opened its menu. A left-over unnamed blank page exists in
+   the Editor's saved-but-unpublished draft state — harmless, delete it via Pages & Menu (hover the row, click
+   its real action icon — this needs a genuine mouse hover to render, which only works from an actual human
+   session, not scripted events) before doing anything else there.
+   **Element placement (repeaters/inputs/buttons) was not attempted at all given the rename blocker.**
+
+**Recommended next steps:**
+1. Beatriz: create the Free check-in call service (duplicate Initial consultation), decide Anchor's real price,
+   decide on Birthing Guidance, then re-run TODO 1 (demo data cleanup — unrelated, still pending).
+2. Pages: either do the manual clicking yourself in the Editor (rename the stray page, add "Admin", place
+   elements per the sandbox's `Booking Journey.fqa96.js` / `Admin.hijzs.js` element lists below) and hand back
+   to Claude to verify + wire code, or try the official Wix MCP connector
+   (`mcp__claude_ai_Wix__authenticate`) as an alternative automation path — untested this session.
+3. Once pages exist with matching element IDs, the backend code is *already* deployed and permission-correct —
+   no further backend work needed for the happy path.
 
 Old note below (still accurate for the SANDBOX flow — do not confuse the two editors):
 
