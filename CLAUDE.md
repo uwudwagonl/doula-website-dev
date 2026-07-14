@@ -1,7 +1,45 @@
 # CLAUDE.md — Doula tiered booking (WORKING REPO / resume state)
 
 This is the **live working repo** (Wix Git Integration). Read this fully before doing anything.
-Last updated: 2026-07-10 (Admin buttons DONE + verified end-to-end; Admin page hidden from nav; changes uncommitted).
+Last updated: 2026-07-14 (live-deploy attempt under time pressure — see RESOLVED/blocked section below; sandbox
+Admin-button commit pushed to `main` as `d58b475`).
+
+## ⚠️ 2026-07-14 — Live replication attempt: blocked on classic-Editor page rename/settings automation
+Attempted TODO 6 (replicate to LIVE) live via Playwright against `manage.wix.com` + the live classic Editor
+(siteId `6903e3f7-73e6-478f-8bc7-e296260a9013`, editor domain `doulabeatrizfacio-mysite.editor.wix.com`).
+**Nothing was published — live site untouched.** What happened:
+- Opened live Editor via dashboard "Edit Site" button → new tab, URL pattern
+  `https://<slug>-mysite.editor.wix.com/html/editor/web/renderer/edit/<siteId>?metaSiteId=<metaSiteId>`.
+- Turned ON Dev Mode (Velo) successfully — button `Turn on Dev Mode` → confirmed `Turn off Dev Mode` state.
+- Pages & Menu → Add Page → Blank Page: creates a page (URL slug `/blank`, shows as "New Page" in nav + Page
+  Code tree) — **this part works** and is scriptable.
+- **BLOCKED: renaming the page.** The "Page: <name>" toolbar field that looks like an inline rename box is
+  actually a page-switcher **search/filter combobox** — `fill()` + Enter on it does NOT rename, it just reverts
+  (confirmed 3x). The real rename control is presumably behind the Pages-panel row's context-menu icon
+  (`[data-hook="context-menu-icon"]`), but a scripted click (both `.click()` and full synthetic
+  pointerover/down/up/click dispatch) on it did not open any menu — no delete/rename option ever appeared in the
+  DOM. Possibly needs a real OS-level trusted click/drag-threshold Wix's row component expects.
+- Saved the draft (Dev Mode on + one unnamed blank page) via the editor's own **Save** button so nothing is lost;
+  did **not** click Publish. The stray blank page is harmless — it's a draft, not live.
+- Did not get to: renaming to "Booking Journey"/"Admin", placing repeater/input/button elements, backend .jsw
+  files, CMS collections, Tiers seed, request-to-book toggles, or Publish.
+
+**Recommended next steps (pick one):**
+1. **Manual finish (fastest):** open the same Editor tab, Pages & Menu panel, hover the "New Page" row → click
+   whatever settings/rename icon actually renders for a human (mouse hover reveals it; scripted dispatch didn't
+   trigger its visibility logic) → rename to "Booking Journey" → repeat Add Page for "Admin" → then either place
+   elements manually (see `../doula-booking/pages/booking-gate.js` + `Admin.hijzs.js` for what's needed) or hand
+   back to Claude once pages+elements exist, same as the sandbox flow.
+2. **Try the official Wix MCP connector** (`mcp__claude_ai_Wix__authenticate` — OAuth, unauthenticated this
+   session) as an alternative to Playwright-against-classic-Editor; unknown if it exposes page/element write
+   ops (CLAUDE.md's earlier note says the old Wix MCP connector was REST-only and couldn't write Velo/pages —
+   re-verify, might have changed).
+3. Backend/CMS-only path (still not attempted live 2026-07-14): CMS collections + Tiers seed can likely be
+   scripted via the in-Editor **CMS panel** (left sidebar `CMS` button) which is form-based, not drag/drop —
+   worth trying before the page-canvas element placement, since it's a fundamentally different (more
+   accessible) UI surface than the page-builder canvas.
+
+Old note below (still accurate for the SANDBOX flow — do not confuse the two editors):
 
 ## TL;DR — what this is
 Tiered booking system for a doula, built **Model A** (no client login). A client books on a normal-looking
